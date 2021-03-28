@@ -132,7 +132,10 @@ class Oscilloscope:
         
         self.divsamples = 150
     
-        self.bkg = plt.imread(to_path("pic/OSCIBKG_sm.png"))
+        try:
+            self.bkg = plt.imread(to_path("pic/OSCIBKG_sm.png"))
+        except:
+            self.bkg = None
         
         self.mode = 'TY'   ## for x-y set it a channel list , eg.[ch1, ch2]
         
@@ -196,7 +199,8 @@ class Oscilloscope:
         # plot and set axes limits
         
     def init_fig(self):
-        self.fig, self.ax = plt.subplots(1, 1, figsize = (12, 4.1))
+        fig, ax = self.new_fig()
+        self.fig = fig; self.ax = ax
         self.set_fig(self.fig, self.ax)        
     
         
@@ -208,33 +212,38 @@ class Oscilloscope:
                 labelleft=False,
                 labelbottom=False)
         ax.set_facecolor('black')
-        ax.imshow(self.bkg, extent = [0 , 1200 , 0, 542 ], zorder = 1)
         
-        menuax = fig.add_axes( [ 180/1200 , 72/542 , (670-180)/1200 , (121-72)/542  ] , label = 'menu')
-        menuax.set_facecolor('firebrick')
-        menuax.tick_params(left=False,
-                bottom=False,
-                labelleft=False,
-                labelbottom=False)       
+        if self.bkg is None:
+            self.plotax = ax
+        else:
+            ax.imshow(self.bkg, extent = [0 , 1200 , 0, 542 ], zorder = 1)
         
-        self.menuax = menuax
-        self.plotax = fig.add_axes( [ 180/1200 , 121/542 , (670-180)/1200 , (445-121)/542  ] , label = 'plot')
+            menuax = fig.add_axes( [ 180/1200 , 72/542 , (670-180)/1200 , (121-72)/542  ] , label = 'menu')
+            menuax.set_facecolor('firebrick')
+            menuax.tick_params(left=False,
+						bottom=False,
+						labelleft=False,
+						labelbottom=False)       
         
-        ax = self.menuax
-        ax.cla()
-        ax.set_facecolor('firebrick')
+            self.menuax = menuax
+            self.plotax = fig.add_axes( [ 180/1200 , 121/542 , (670-180)/1200 , (445-121)/542  ] , label = 'plot')
         
-        cnt = 0
-        for chname in self.channels:
-            ch = self.channels[chname]
-            if ch.active:
-                text = chname + ': {:3g} V/d '.format(ch.voltdiv)+ ' | '
-                ax.text( cnt*0.25 , 0.6, text , zorder = 2, fontsize = 11, color = ch.color())
-                ax.text(cnt*0.25+0.05, 0.1, '({:2g},{:2g})'.format(ch.dh,ch.dv), zorder = 2, fontsize = 10, color = 'white')
-                cnt += 1
+            ax = self.menuax
+            ax.cla()
+            ax.set_facecolor('firebrick')
+        
+            cnt = 0
+            for chname in self.channels:
+                ch = self.channels[chname]
+                if ch.active:
+                    text = chname + ': {:3g} V/d '.format(ch.voltdiv)+ ' | '
+                    ax.text( cnt*0.25 , 0.6, text , zorder = 2, fontsize = 11, color = ch.color())
+                    ax.text(cnt*0.25+0.05, 0.1, '({:2g},{:2g})'.format(ch.dh,ch.dv), zorder = 2, fontsize = 10, color = 'white')
+                    cnt += 1
 			
-        text2 = '| dT: {:.2g} s/d'.format(self.secdiv)
-        ax.text(0.75,0.4, text2, zorder = 2, fontsize = 11)
+            text2 = '| dT: {:.2g} s/d'.format(self.secdiv)
+            ax.text(0.75,0.4, text2, zorder = 2, fontsize = 11)
+
         
     def step(self, n = -1):
         if n < 0: n = self.samples.n
@@ -306,8 +315,16 @@ class Oscilloscope:
         ax.axhline(0, 0,1, lw = 1, color = self.noise.color(), zorder = 2)
         ax.axvline(0, 0,1, lw=1, color = self.noise.color(), zorder = 2)
         
+    def new_fig(self):    
+        if self.bkg is None:
+            fig, ax = plt.subplots(1, 1, figsize = (12, 9))   ## 1:1 aspect
+        else:
+            fig, ax = plt.subplots(1, 1, figsize = (12, 4.1))
+        
+        return fig,ax
+            
     def show(self):
-        fig, ax = plt.subplots(1, 1, figsize = (12, 4.1))
+        fig, ax = self.new_fig()
         self.set_fig(fig,ax)
         self.animation()
         plt.show(block=False)
