@@ -113,7 +113,7 @@ c2 = osci.Channel(s2)
 c2.voltdiv = 1
 
 o.add_channel(c1)
-o.add_channel(c2, main = False)  ## c1 remains triggering
+o.add_channel(c2, trig = False)  ## c1 remains triggering
 
 o.step()
 o.show()
@@ -155,7 +155,7 @@ c2 = osci.Channel(s2)
 c2.voltdiv = 1
 
 o.add_channel(c1)
-o.add_channel(c2, main = False)
+o.add_channel(c2, trig = False)
 
 o.step()
 o.show()
@@ -213,7 +213,7 @@ c2 = osci.Channel(s2)
 c2.voltdiv = 0.5
 
 o.add_channel(c1)
-o.add_channel(c2, main = False)
+o.add_channel(c2, trig = False)
 
 o.mode = [c1,c2] ### set this to list of the x-y channels. any other shows all TYs
 
@@ -237,7 +237,7 @@ s3 = osci.Signal(spectrum = [[150, 1.5]], noise = 0.01)
 c3 = osci.Channel(s3)
 c3.voltdiv = 0.5
 
-o.add_channel(c3, main = False)
+o.add_channel(c3, trig = False)
 o.mode = [c1, c3]
 
 o.step()
@@ -272,16 +272,9 @@ o.show()
 
 
 ```python
-class MathChannel(osci.Channel):
-    def __init__(self, a, b):
-        super().__init__(self)
-        self.a = a; self.b = b
-    def __call__(self, t):
-        return self.a(t) - self.b(t)
-
-c4 = MathChannel( c1 , c2 )
+c4 = osci.DiffChannel( c1 , c2 )
 c4.voltdiv = 1
-o.add_channel( c4, main = False )
+o.add_channel( c4, trig = False )
 
 c1.dh=0            ## align
 c3.active = False  ## turn off
@@ -304,16 +297,16 @@ o.show()
 o = osci.Oscilloscope()
 
 ## x-y with squares
-s1 = osci.Signal(offset = -1, square = [[50, 2.5, 0.3]], noise = 0.05)
+s1 = osci.Signal(offset = -1, square = [[50, 2.5, 0.3],[75, 1, 0.01, 0.6]], noise = 0.05)
 s2 = osci.Signal(square = [[200, 1.5,0.7], [25, -3, 0.2]], noise = 0.05)
 
 c1 = osci.Channel(s1)
 c1.voltdiv = 0.5
 c2 = osci.Channel(s2)
-c2.voltdiv = 0.5
+c2.voltdiv = 1
 
 o.add_channel(c1)
-o.add_channel(c2, main = False)
+o.add_channel(c2, trig = False)
 
 o.mode = [c1,c2] ### set this to list of the x-y channels. any other shows all TYs
 

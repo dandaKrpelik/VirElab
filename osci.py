@@ -62,8 +62,8 @@ class Ring:
 class Signal:
     def __init__(self, offset = 0, spectrum = [], noise = 0, square = []):
         self.offset = offset
-        self.spectrum = spectrum    ## [ [f, A] , ...    ]
-        self.square = square        ## [ [f, A, duty], ... ]
+        self.spectrum = spectrum    ## [ [f, A, phi] , ...    ]
+        self.square = square        ## [ [f, A, phi, duty], ... ]
         self.noise = noise
     
     def __call__(self, t):
@@ -75,12 +75,14 @@ class Signal:
             out += self.noise * np.random.randn()
 
         for s in self.spectrum:
-            out += s[1] * np.sin( 2*PI*s[0]*t )       
+            p = 0 if len(s) < 3 else s[2]
+            out += s[1] * np.sin( 2*PI*s[0]*(t+p) )       
         for s in self.square:
             T = 1./s[0]
-            tau = t % T
-            d = 0.5*T if len(s) < 3 else s[2]*T
-            out += s[1] * ( tau < d )    
+            p = 0 if len(s) < 3 else s[2]
+            tau = ( t % T - p) % T
+            d = 0.5*T if len(s) < 4 else s[3]*T
+            out += s[1] * (tau < d)
         
         return out + self.offset
     
@@ -105,6 +107,7 @@ class Channel:
         self.dh = 0
         
         self.invert = False
+        self.AC = False
         
     def set_id(self, i):
         self.id = i
@@ -115,8 +118,26 @@ class Channel:
         
     def __call__(self, t):
         out = self.signal(t)
+        if self.AC:
+            out -= self.signal.offset
+            for sq in self.signal.square:
+                d = 0.5 if len(sq) < 4 else sq[3]
+                out -= sq[1]*d
+                
         if self.invert: out *= -1
         return out
+
+class DiffChannel(Channel):
+    def __init__(self, a, b):
+        super().__init__()
+        self.a = a
+        self.b = b
+        self.voltdiv = max(a.voltdiv, b.voltdiv)
+        
+    def __call__(self, t):
+        x = self.a(t)
+        y = self.b(t)
+        return x - y
 
 class Oscilloscope:
     ## basic noise due to ele grid
@@ -145,15 +166,15 @@ class Oscilloscope:
         self.mode = 'TY'   ## for x-y set it a channel list , eg.[ch1, ch2]
         
 
-    def add_channel(self, ch, main = True):
+    def add_channel(self, ch, trig = True):
         n = len(self.channels) + 1
         ch.set_id( n )
         
         self.channels[ch.name] = ch
-        if main: self.trig_channel = ch
+        if trig: self.trig_channel = ch
         
         echo = 'added channel '+str(n)
-        if main: echo += ' and set it as trigger signal'
+        if trig: echo += ' and set it as trigger signal'
         print(echo)
         
     def find_Trig(self, t0 = None, dt = None):
@@ -237,17 +258,34 @@ class Oscilloscope:
             ax.cla()
             ax.set_facecolor('firebrick')
         
+            draw = []
+            if type(self.mode) is list:
+                draw = self.mode                    
+            else:
+                for chname in self.channels:
+                    ch = self.channels[chname]
+                    if ch.active:
+                        draw += [ch]
+                        
             cnt = 0
-            for chname in self.channels:
-                ch = self.channels[chname]
-                if ch.active:
-                    text = chname + ': {:3g} V/d '.format(ch.voltdiv)+ ' | '
-                    ax.text( cnt*0.25 , 0.6, text , zorder = 2, fontsize = 11, color = ch.color())
-                    ax.text(cnt*0.25+0.05, 0.1, '({:2g},{:2g})'.format(ch.dh,ch.dv), zorder = 2, fontsize = 10, color = 'white')
-                    cnt += 1
-			
-            text2 = '| dT: {:.2g} s/d'.format(self.secdiv)
-            ax.text(0.75,0.4, text2, zorder = 2, fontsize = 11)
+            for ch in draw:
+                x = cnt*0.25
+                y = 0.6
+                ax.text( x,y, ch.name, zorder = 2, fontsize = 11, color = 'black', fontweight = 'bold')
+                text = '{:3g} (V/d)'.format(ch.voltdiv)
+                ax.text( x+0.08 ,y, text,
+                        zorder = 2, fontsize = 11,
+                        backgroundcolor = 'black',
+                        color = ch.color())
+                    
+                ax.text(x+0.05, 0.1, '({:2g},{:2g})'.format(ch.dh,ch.dv),
+                        zorder = 2, fontsize = 9,
+                        backgroundcolor = 'black',
+                        color = 'white')
+                cnt += 1 
+
+            text2 = '|dT {:.0e} (s/d)'.format(self.secdiv)
+            ax.text(0.75,0.4, text2, zorder = 3, fontsize = 10, color = 'black', fontweight = 'bold')
 
         
     def step(self, n = -1):
@@ -271,9 +309,6 @@ class Oscilloscope:
                     labelleft=False,
                     labelbottom=False)
 
-        t_base = None      
-        
-        
         if type(self.mode) is list:
             ch = self.mode
             
@@ -285,7 +320,8 @@ class Oscilloscope:
                     if chname == ch[1].name:
                         y = xs[chname]
                 
-                ax.plot( x/ch[0].voltdiv, y/ch[1].voltdiv , color = ch[0].color())
+                ax.plot( x/ch[0].voltdiv, y/ch[1].voltdiv , color = ch[0].color(),zorder = 1)
+                ax.scatter( x/ch[0].voltdiv, y/ch[1].voltdiv , color = ch[1].color(), s = 15,zorder = 2)
 
                 
             ax.set_xlim( [ -self.hdiv / 2 , self.hdiv / 2] )
@@ -294,6 +330,7 @@ class Oscilloscope:
             ax.set_xticks( [ - self.hdiv / 2 + i for i in range(self.hdiv) ] )
             ax.set_yticks( [ - self.vdiv / 2 + i for i in range(self.vdiv) ] )           
         else:
+            t_base = None      
             for a in self.samples:
                 t, xs = a
                 if t_base is None:
@@ -304,7 +341,8 @@ class Oscilloscope:
                     ax.plot(t + ch.dh, (x + ch.dv) / ch.voltdiv , color = ch.color() , lw = 1)
                 
             trig_y = (self.trig_channel.trig + self.trig_channel.dv) / self.trig_channel.voltdiv
-            ax.axhline(trig_y, 0,1 , linestyle='-.', color = self.trig_channel.color())
+            #ax.axhline(trig_y, 0,1 , linestyle='-.', color = self.trig_channel.color())
+            ax.axhline(trig_y, 0,1 , linestyle='-.', color = self.noise.color(), lw = 0.5)
             ax.scatter([t_base[0]],[trig_y], marker = '>', s = 450, color = self.noise.color())
             
             mid = (t_base[-1]+t_base[0])/2
@@ -374,10 +412,44 @@ if __name__=='__main__':
     ch2.voltdiv = 1
     
     osci.add_channel( ch1 )
-    osci.add_channel( ch2 , main = False)
+    osci.add_channel( ch2 , trig = False)
     osci.show()
     
+    ch3 = Channel(Signal(offset = 0, square=[[50, 2, 3e-3, 0.5]], noise = 0.05))
+    ch3.voltdiv = 0.5
+    ch1.active = False
+    ch2.active = False
+    ch4 = Channel(Signal(offset = -1.5, square=[[50, 2.5, -2e-3, 0.5]], noise = 0.05))
+    ch4.voltdiv = 0.5
+    
+    osci.add_channel(ch3, trig = False)
+    osci.add_channel(ch4)
+    
+    osci.step(25)
+    osci.show()
+    
+    ch3.AC = True
+    ch4.AC = True
+    
+    osci.step(25)
+    osci.show()
     #osci.run()
     
+    
+    ch1.active = True
+    osci.trig_channel = ch1
+    
+    ch3.AC = False
+    osci.step(25)
+    osci.show()
+    
+    osci.mode = [ch1, ch3]
+    osci.show()
+    
+    osci.mode = [ch4, ch1]
+    osci.show()
+    
+    osci.mode = [ch4, ch3]
+    osci.show()
 
     pass
