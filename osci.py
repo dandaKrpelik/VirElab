@@ -2,8 +2,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as mani
 from enum import Enum
-import time
 
+import os	## for relative imports
+script_dir = os.path.dirname(__file__)
+to_path = lambda p : os.path.relpath(p)
+
+import time
 T0 = time.time()
 PI = 3.1415926535
 
@@ -56,7 +60,8 @@ class Ring:
 #fig, ax = plt.subplots(1, 1, figsize = (8, 6))
 
 class Signal:
-    def __init__(self, spectrum = [], noise = 1e-7, square = []):
+    def __init__(self, offset = 0, spectrum = [], noise = 0, square = []):
+        self.offset = offset
         self.spectrum = spectrum    ## [ [f, A] , ...    ]
         self.square = square        ## [ [f, A, duty], ... ]
         self.noise = noise
@@ -77,13 +82,13 @@ class Signal:
             d = 0.5*T if len(s) < 3 else s[2]*T
             out += s[1] * ( tau < d )    
         
-        return out
+        return out + self.offset
     
 
 
 class Channel:
     ID_CNT = 0
-    colors = ['yellow', 'lime',  'magenta', 'orangered', 'royalblue']
+    colors = ['yellow',  'deepskyblue',  'orangered', 'lawngreen',  'magenta', 'dodgerblue']
     def __init__(self, signal = Signal()):
         self.id = Channel.ID_CNT
         Channel.ID_CNT += 1
@@ -110,9 +115,10 @@ class Channel:
         return out
 
 class Oscilloscope:
-    def __init__(self, noise = Signal([[50,1e-6]], noise = 1e-7)):
+    ## basic noise due to ele grid
+    def __init__(self, noise = Signal(spectrum = [[50,1e-6]], noise = 1e-7)):
         self.noise = Channel(noise)
-        self.noise.voltdiv = max( [x[1] for x in noise.spectrum] + [x[1] for x in noise.square] )
+        self.noise.voltdiv = 3* max( [x[1] for x in noise.spectrum] + [x[1] for x in noise.square] )
         self.channels = {}#ch1.name:ch1}
         self.trig_channel = self.noise
     
@@ -126,13 +132,9 @@ class Oscilloscope:
         
         self.divsamples = 150
     
-        self.bkg = plt.imread("pic/OSCIBKG_sm.png")
+        self.bkg = plt.imread(to_path("pic/OSCIBKG_sm.png"))
         
-        self.mode = 'TY'   ## for x-y put channel list , eg.[ch1, ch2]
-    
-        ## left bot 58 * 77
-        ## right top 671 * 426
-        ## tot 1200 * 542
+        self.mode = 'TY'   ## for x-y set it a channel list , eg.[ch1, ch2]
         
 
     def add_channel(self, ch, main = True):
@@ -142,6 +144,10 @@ class Oscilloscope:
         self.channels[ch.name] = ch
         if main: self.trig_channel = ch
         
+        echo = 'added channel '+str(n)
+        if main: echo += ' and set it as trigger signal'
+        print(echo)
+        
     def find_Trig(self, t0 = None, dt = None):
         #print('looking for trig, side is ', edge)
         source = self.trig_channel
@@ -149,14 +155,13 @@ class Oscilloscope:
         edge = source.trig_edge
 
         if t0 is None:
-            t0 = time.time()
+            t0 = time.time()-T0
         if dt is None:
             dt = 10* self.secdiv / self.divsamples
             
         t = t0
         x = source(t) + self.noise(t)
         
-
         
         LIM = t+10    ## 10 sec max search
         while(t < LIM):
@@ -171,7 +176,7 @@ class Oscilloscope:
         return -1
 
     def sample(self):
-        trig_time = self.find_Trig( )#self.trig, self.trig_edge )
+        trig_time = self.find_Trig( )
         if trig_time < 0:
             print('trig time not found')
             return
@@ -219,28 +224,27 @@ class Oscilloscope:
         ax.cla()
         ax.set_facecolor('firebrick')
         
-        text1 = ''
+        cnt = 0
         for chname in self.channels:
             ch = self.channels[chname]
             if ch.active:
-                text1 += chname + ': {:3g} V/d '.format(ch.voltdiv)+ ' | '
-        
+                text = chname + ': {:3g} V/d '.format(ch.voltdiv)+ ' | '
+                ax.text( cnt*0.25 , 0.6, text , zorder = 2, fontsize = 11, color = ch.color())
+                ax.text(cnt*0.25+0.05, 0.1, '({:2g},{:2g})'.format(ch.dh,ch.dv), zorder = 2, fontsize = 10, color = 'white')
+                cnt += 1
+			
         text2 = '| dT: {:.2g} s/d'.format(self.secdiv)
-        
-        ax.text(0,0.2, text1, zorder = 2, fontsize = 16)
-        ax.text(0.65,0.2, text2, zorder = 2, fontsize = 16)
-        #ax.text(0,0.2,'TOHLE JE TESTOVACI TEXT', zorder = 2, fontsize = 22)
-        #ax.text(0.8,0,'- taky', zorder = 2, fontsize = 22)
+        ax.text(0.75,0.4, text2, zorder = 2, fontsize = 11)
         
     def step(self, n = -1):
         if n < 0: n = self.samples.n
         for i in range(n):
             self.sample()
         
+    def clear(self):
+        self.samples = Ring(5)
 
     def animation(self, frame = 0):
-    # delete previous frame
-        
         self.step(1)
     
         ax = self.plotax
@@ -283,10 +287,11 @@ class Oscilloscope:
                 for chname in xs:
                     x = xs[chname]
                     ch = self.channels[chname]
-                    ax.plot(t - ch.dh, x / ch.voltdiv + ch.dv , color = ch.color() , lw = 1)
+                    ax.plot(t + ch.dh, (x + ch.dv) / ch.voltdiv , color = ch.color() , lw = 1)
                 
-            ax.axhline(self.trig_channel.trig / self.trig_channel.voltdiv, 0,1 , linestyle='-.', color = self.trig_channel.color())
-            ax.scatter([t_base[0]],[self.trig_channel.trig / self.trig_channel.voltdiv], marker = '>', s = 150, color = 'yellow')
+            trig_y = (self.trig_channel.trig + self.trig_channel.dv) / self.trig_channel.voltdiv
+            ax.axhline(trig_y, 0,1 , linestyle='-.', color = self.trig_channel.color())
+            ax.scatter([t_base[0]],[trig_y], marker = '>', s = 150, color = self.noise.color())
             
                 
             ax.set_xlim( [ t_base[0] , t_base[-1]] )
@@ -297,10 +302,9 @@ class Oscilloscope:
          
 
         
-        ax.grid(True, color = 'yellow', alpha=0.8, linestyle=':')
-        ax.axhline(0, 0,1, lw = 1,color = 'yellow', zorder = 2)
-        #ax.axvline(trig_time, 0,1, lw=1, color = 'yellow', zorder = 2)
-        ax.axvline(0, 0,1, lw=1, color = 'yellow', zorder = 2)
+        ax.grid(True, color = self.noise.color(), alpha=0.8, linestyle=':')
+        ax.axhline(0, 0,1, lw = 1, color = self.noise.color(), zorder = 2)
+        ax.axvline(0, 0,1, lw=1, color = self.noise.color(), zorder = 2)
         
     def show(self):
         fig, ax = plt.subplots(1, 1, figsize = (12, 4.1))
@@ -308,39 +312,47 @@ class Oscilloscope:
         self.animation()
         plt.show(block=False)
     
+    def screen(self):
+        fig, ax = plt.subplots(1, 1, figsize = (12, 9))
+        self.plotax = ax
+        self.animation()
+        plt.show(block=False)
+            
+    
     def prompt(self):
         line = input()
-        while(line != ''):
+        while(not line in ['exit','quit']):
             print(line)
             line = input()        
     
-
-osci = Oscilloscope()
-#osci.trig_edge=Trig.Descending
-#osci.trig = 3e-7
-
-osci.init_fig()
-osci.animation(0)
-plt.show(block=False)
-    
-
-ch1 = Channel(Signal(spectrum = [[15,2],[30,3.5],[45,1.5]],noise = 1e-4))
-ch1.voltdiv = 2
-ch1.trig = 3
-
-ch2 = Channel( Signal([[50,2.5]], noise = 1e-4) )
-ch2.voltdiv = 1
-
-osci.add_channel( ch1 )
-osci.add_channel( ch2 , main = False)
-osci.show()
+    def run(self):
+        self.init_fig()
+        anim = mani.FuncAnimation(self.fig, self.animation, interval = 250)
+        plt.show(block = False)
+        self.prompt()
 
 if __name__=='__main__':
-    # run animation
-    #anim = mani.FuncAnimation(osci.fig, osci.animation, frames = 50, interval = 10)
-    #osci.init_fig()
-    #anim = mani.FuncAnimation(osci.fig, osci.animation, interval = 250)
-    #plt.show(block = False)
+    osci = Oscilloscope()
+    #osci.trig_edge=Trig.Descending
+    #osci.trig = 3e-7
+    
+    osci.init_fig()
+    osci.animation(0)
+    plt.show(block=False)
+        
+    
+    ch1 = Channel(Signal(spectrum = [[15,2],[30,3.5],[45,1.5]],noise = 1e-4))
+    ch1.voltdiv = 2
+    ch1.trig = 3
+    
+    ch2 = Channel( Signal(spectrum = [[50,2.5]], noise = 1e-4) )
+    ch2.voltdiv = 1
+    
+    osci.add_channel( ch1 )
+    osci.add_channel( ch2 , main = False)
+    osci.show()
+    
+    #osci.run()
     
 
     pass
