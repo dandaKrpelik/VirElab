@@ -1,7 +1,7 @@
 # Virtual Electro Labs
 To simulate some ele related stuff.
 
-![square Lissajous curve](Demo/output_14_1.png)
+![square Lissajous curve](Demo/OsciDemoMD/output_14_1.png)
 
 Can be either copied into working dir or installed via
 `python3 pyElab/setup.py install`
