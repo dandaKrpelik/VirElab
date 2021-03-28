@@ -106,6 +106,10 @@ class Channel:
         
         self.invert = False
         
+    def set_id(self, i):
+        self.id = i
+        self.name = 'ch'+str(i)
+        
     def color(self):
         return Channel.colors[self.id % len(Channel.colors)]
         
@@ -118,6 +122,7 @@ class Oscilloscope:
     ## basic noise due to ele grid
     def __init__(self, noise = Signal(spectrum = [[50,1e-6]], noise = 1e-7)):
         self.noise = Channel(noise)
+        self.noise.set_id(0)
         self.noise.voltdiv = 3* max( [x[1] for x in noise.spectrum] + [x[1] for x in noise.square] )
         self.channels = {}#ch1.name:ch1}
         self.trig_channel = self.noise
@@ -142,8 +147,8 @@ class Oscilloscope:
 
     def add_channel(self, ch, main = True):
         n = len(self.channels) + 1
-        ch.id = n
-        ch.name = 'ch'+str(n)
+        ch.set_id( n )
+        
         self.channels[ch.name] = ch
         if main: self.trig_channel = ch
         
