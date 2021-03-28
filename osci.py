@@ -133,7 +133,7 @@ class Oscilloscope:
         self.divsamples = 150
     
         try:
-            self.bkg = plt.imread(to_path("pic/OSCIBKG_sm.png"))
+            self.bkg = plt.imread(to_path("lab_meta/OSCI_unit_bkg.png"))
         except:
             self.bkg = None
         
