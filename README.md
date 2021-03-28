@@ -8,6 +8,7 @@ Can be either copied into working dir or installed via
 
 # Oscilloscope:
 [oscilloscope notebook](Demo/OsciDemoMD/OsciDemo.md)
+
 [oscilloscope notebook PDF](Demo/OsciDemo.pdf)
 
 In order to show full device, copy the `lab_meta` folder (with the background pic) into your working directory.
