@@ -116,13 +116,17 @@ class Channel:
     def color(self):
         return Channel.colors[self.id % len(Channel.colors)]
         
-    def __call__(self, t):
+    def call(self, t):
         out = self.signal(t)
         if self.AC:
             out -= self.signal.offset
             for sq in self.signal.square:
                 d = 0.5 if len(sq) < 4 else sq[3]
                 out -= sq[1]*d
+        return out
+    
+    def __call__(self, t):
+        out = self.call(t)
                 
         if self.invert: out *= -1
         return out
@@ -134,7 +138,7 @@ class DiffChannel(Channel):
         self.b = b
         self.voltdiv = max(a.voltdiv, b.voltdiv)
         
-    def __call__(self, t):
+    def call(self, t):
         x = self.a(t)
         y = self.b(t)
         return x - y
@@ -272,7 +276,7 @@ class Oscilloscope:
                 x = cnt*0.25
                 y = 0.6
                 ax.text( x,y, ch.name, zorder = 2, fontsize = 11, color = 'black', fontweight = 'bold')
-                text = '{:3g} (V/d)'.format(ch.voltdiv)
+                text = '{:3g} V/d'.format(ch.voltdiv)
                 ax.text( x+0.08 ,y, text,
                         zorder = 2, fontsize = 11,
                         backgroundcolor = 'black',
@@ -284,7 +288,7 @@ class Oscilloscope:
                         color = 'white')
                 cnt += 1 
 
-            text2 = '|dT {:.0e} (s/d)'.format(self.secdiv)
+            text2 = '|dT {:.0e} s/d'.format(self.secdiv)
             ax.text(0.75,0.4, text2, zorder = 3, fontsize = 10, color = 'black', fontweight = 'bold')
 
         
