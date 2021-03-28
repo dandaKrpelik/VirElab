@@ -305,7 +305,10 @@ class Oscilloscope:
                 
             trig_y = (self.trig_channel.trig + self.trig_channel.dv) / self.trig_channel.voltdiv
             ax.axhline(trig_y, 0,1 , linestyle='-.', color = self.trig_channel.color())
-            ax.scatter([t_base[0]],[trig_y], marker = '>', s = 150, color = self.noise.color())
+            ax.scatter([t_base[0]],[trig_y], marker = '>', s = 450, color = self.noise.color())
+            
+            mid = (t_base[-1]+t_base[0])/2
+            ax.scatter([ self.trig_channel.dh + mid ],[4], marker = 'v', s = 450, color = self.noise.color())
             
                 
             ax.set_xlim( [ t_base[0] , t_base[-1]] )
