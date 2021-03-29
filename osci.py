@@ -281,6 +281,8 @@ class Oscilloscope:
                         zorder = 2, fontsize = 11,
                         backgroundcolor = 'black',
                         color = ch.color())
+                if ch.invert:
+                    ax.text( x+0.06, y, 'v', fontsize=12, zorder = 4, color = self.noise.color(), fontweight='bold' )
                     
                 ax.text(x+0.05, 0.1, '({:2g},{:2g})'.format(ch.dh,ch.dv),
                         zorder = 2, fontsize = 9,
@@ -432,6 +434,7 @@ if __name__=='__main__':
     osci.step(25)
     osci.show()
     
+    ch3.invert = True
     ch3.AC = True
     ch4.AC = True
     
