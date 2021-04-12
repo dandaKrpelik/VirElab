@@ -60,11 +60,13 @@ class Ring:
 #fig, ax = plt.subplots(1, 1, figsize = (8, 6))
 
 class Signal:
-    def __init__(self, offset = 0, spectrum = [], noise = 0, square = []):
+    def __init__(self, offset = 0, spectrum = [], noise = 0, square = [], trap = []):
         self.offset = offset
         self.spectrum = spectrum    ## [ [f, A, phi] , ...    ]
         self.square = square        ## [ [f, A, phi, duty], ... ]
+        self.trap = trap					## [ [f, A, phi, a,b,c,d,e] ]				## a first max, b end first max, c zero, d first min, e end min
         self.noise = noise
+        
     
     def __call__(self, t):
         if type(t) in [list,tuple,np.ndarray]:
@@ -84,6 +86,30 @@ class Signal:
             d = 0.5*T if len(s) < 4 else s[3]*T
             out += s[1] * (tau < d)
         
+        for s in self.trap:
+            T = 1./s[0]
+            A = s[1]
+            phi = s[2]
+            
+            a,b,c,d,e = s[3:]
+            
+            tau = ( t % T - phi) % T
+            tau /= T
+            if type(t) in [list,tuple,np.ndarray]: 
+                out += A* tau * 1/a
+                out[tau > a] += A*(tau[tau > a] -a )* (-1/a)
+                out[tau > b] += A*(tau[tau > b] -b )* (-1/(c-b))
+                out[tau > c] += A*(tau[tau > c] -c )* (1/(c-b) -1/(d-c))
+                out[tau > d] += A*(tau[tau > d] -d )* (1/(d-c))
+                out[tau > e] += A*(tau[tau > e] -e )* (1/(1-e))
+            else:
+                out += A* tau * 1/a
+                if tau > a: out += A*(tau-a )* (-1/a)
+                if tau > b: out += A*(tau-b )* (-1/(c-b))
+                if tau > c: out += A*(tau-c )* (1/(c-b) -1/(d-c))
+                if tau > d: out += A*(tau-d )* (1/(d-c))
+                if tau > e: out += A*(tau-e )* (1/(1-e))
+				
         return out + self.offset
     
 
@@ -208,8 +234,8 @@ class Oscilloscope:
             x = y
         return -1
 
-    def sample(self):
-        trig_time = self.find_Trig( )
+    def sample(self, t0 = None):
+        trig_time = self.find_Trig(t0)
         if trig_time < 0:
             print('trig time not found')
             return
@@ -345,14 +371,15 @@ class Oscilloscope:
                     x = xs[chname]
                     ch = self.channels[chname]
                     ax.plot(t + ch.dh, (x + ch.dv) / ch.voltdiv , color = ch.color() , lw = 1)
+                    ax.scatter([t_base[0]],[ch.dv/ch.voltdiv], marker = '>', s = 550, color = ch.color(),zorder=2)
                 
             trig_y = (self.trig_channel.trig + self.trig_channel.dv) / self.trig_channel.voltdiv
             #ax.axhline(trig_y, 0,1 , linestyle='-.', color = self.trig_channel.color())
             ax.axhline(trig_y, 0,1 , linestyle='-.', color = self.noise.color(), lw = 0.5)
-            ax.scatter([t_base[0]],[trig_y], marker = '>', s = 450, color = self.noise.color())
+            ax.scatter([t_base[0]],[trig_y], marker = '>', s = 250, color = self.noise.color(), zorder=3)
             
             mid = (t_base[-1]+t_base[0])/2
-            ax.scatter([ self.trig_channel.dh + mid ],[4], marker = 'v', s = 450, color = self.noise.color())
+            ax.scatter([ self.trig_channel.dh + mid ],[4], marker = 'v', s = 250, color = self.noise.color())
             
                 
             ax.set_xlim( [ t_base[0] , t_base[-1]] )
